@@ -44,7 +44,7 @@ bedrock_llm = ChatBedrock(
     provider="anthropic"
 )
 
-# Keep Ollama for sentence embeddings for now
+# Keep Ollama for sentence embeddings
 ollama_embeddings = OllamaEmbeddings(model="mxbai-embed-large")
 
 # Elasticsearch client setup - using same remote ES as source
@@ -69,10 +69,20 @@ except requests.exceptions.ConnectionError:
 load_data = '-load' in sys.argv
 
 if load_data:
-    print("Loading data from source Elasticsearch...")
+    # Get source index from command line argument
+    try:
+        load_index = sys.argv.index('-load')
+        if load_index + 1 < len(sys.argv):
+            SOURCE_INDEX = sys.argv[load_index + 1]
+        else:
+            print("Error: -load requires a source index name")
+            print("Usage: docs-ai-chat.py -load <source_index>")
+            exit()
+    except ValueError:
+        print("Error: -load parameter not found")
+        exit()
     
-    # Source Elasticsearch configuration
-    SOURCE_INDEX = "doc-infra-40773514"  # Replace with your source index
+    print(f"Loading data from source Elasticsearch index: {SOURCE_INDEX}...")
     
     # Query all documents from source ES
     headers = {
@@ -187,8 +197,12 @@ if load_data:
     documents = []
     for hit in json_data['hits']['hits']:
         source = hit['_source']
-        content = source.get('content', '')
+        content = source.get('content', '').strip()
         
+        # Skip documents with empty content
+        if not content:
+            continue
+            
         # Generate embedding for content
         embedding = ollama_embeddings.embed_query(content)
         
