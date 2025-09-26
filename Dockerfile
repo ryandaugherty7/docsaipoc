@@ -5,10 +5,14 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    procps \
     && rm -rf /var/lib/apt/lists/*
-
+    
 # Install Ollama
 RUN curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pre-download the embedding model during build
+RUN ollama serve & sleep 5 && ollama pull mxbai-embed-large && pkill ollama
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
@@ -23,5 +27,5 @@ EXPOSE 8501
 # Health check
 HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
 
-# Start Ollama and Streamlit
-CMD ["sh", "-c", "ollama serve & sleep 10 && ollama pull mxbai-embed-large && streamlit run docs-ai-chat.py --server.port=8501 --server.address=0.0.0.0 -- --web"]
+# Start Ollama and Streamlit (model already downloaded)
+CMD ["sh", "-c", "ollama serve & sleep 5 && streamlit run docs-ai-chat.py --server.port=8501 --server.address=0.0.0.0 --server.enableWebsocketCompression=false --server.enableCORS=false --server.allowRunOnSave=false -- --web"]

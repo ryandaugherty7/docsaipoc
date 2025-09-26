@@ -39,7 +39,7 @@ if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY:
 
 # Initialize Claude via Bedrock
 bedrock_llm = ChatBedrock(
-    model_id="arn:aws:bedrock:us-east-2:273354632795:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
+    model_id="arn:aws:bedrock:us-east-1:273354632795:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0",
     region_name=AWS_REGION,
     provider="anthropic"
 )
