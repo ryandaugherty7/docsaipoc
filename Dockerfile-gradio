@@ -1,0 +1,31 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+    
+# Install Ollama
+RUN curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pre-download the embedding model during build
+RUN ollama serve & sleep 5 && ollama pull mxbai-embed-large && pkill ollama
+
+# Copy requirements and install Python dependencies
+COPY requirements-gradio.txt .
+RUN pip install --no-cache-dir -r requirements-gradio.txt
+
+# Copy app files
+COPY docs-ai-chat-gradio.py .
+
+# Expose port 8080 (App Runner standard)
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK CMD curl --fail http://localhost:8080/
+
+# Start Ollama and Gradio
+CMD ["sh", "-c", "ollama serve & sleep 5 && python docs-ai-chat-gradio.py"]

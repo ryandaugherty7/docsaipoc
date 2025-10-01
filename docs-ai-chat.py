@@ -378,20 +378,22 @@ def add_sources(response_and_docs):
     response = response_and_docs["response"]
     docs = response_and_docs["docs"]
     
-    # Extract paths in relevance order (no deduplication to preserve order)
-    paths = []
+    # Extract paths and titles in relevance order (no deduplication to preserve order)
+    sources = []
     seen_paths = set()
     for doc in docs:
         path = doc.get('path', '')
+        title = doc.get('title', '')
         if path and path not in seen_paths:
-            paths.append(path)
+            sources.append({'path': path, 'title': title})
             seen_paths.add(path)
     
-    # Format sources in relevance order
-    if paths:
+    # Format sources in relevance order with titles as link text
+    if sources:
         sources_text = "\n\nSources:\n"
-        for path in paths:
-            sources_text += f"- https://docs.appian.com/suite/help/latest/{path}\n"
+        for source in sources:
+            title = source['title'] if source['title'] else source['path']
+            sources_text += f"- [{title}](https://docs.appian.com/suite/help/25.3/{source['path']})\n"
         return response + sources_text
     return response
 

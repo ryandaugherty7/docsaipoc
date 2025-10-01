@@ -21,11 +21,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app files
 COPY docs-ai-chat.py .
 
-# Expose port
-EXPOSE 8501
+# Expose port 8080 (App Runner standard)
+EXPOSE 443
 
 # Health check
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+HEALTHCHECK CMD curl --fail http://localhost:443/_stcore/health
 
-# Start Ollama and Streamlit (model already downloaded)
-CMD ["sh", "-c", "ollama serve & sleep 5 && streamlit run docs-ai-chat.py --server.port=8501 --server.address=0.0.0.0 --server.enableWebsocketCompression=false --server.enableCORS=false --server.allowRunOnSave=false -- --web"]
+# Start Ollama and Streamlit with WebSocket-friendly settings
+CMD ["sh", "-c", "ollama serve & sleep 5 && streamlit run docs-ai-chat.py --server.port=443 --server.address=0.0.0.0 --server.enableWebsocketCompression=false --server.enableCORS=false --server.allowRunOnSave=false --server.headless=true --server.runOnSave=false -- --web"]
+
