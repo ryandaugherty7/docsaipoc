@@ -2,22 +2,53 @@
 
 import os
 import sys
+import re
 import requests
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_aws import BedrockEmbeddings
 
 # Configuration
-INDEX_NAME = "docs-index"
+INDEX_NAME = "appian_docs_rag"
 ELASTICSEARCH_URL = os.getenv('SOURCE_ES_HOST', 'https://29944f54da01413ab55da3b9f2fa68ad.us-east-1.aws.found.io:443')
 ES_API_KEY = os.getenv('SOURCE_ES_API_KEY')
 
-# Initialize embeddings
-hf_embeddings = HuggingFaceEmbeddings(
-    model_name="mixedbread-ai/mxbai-embed-large-v1",
-    model_kwargs={'device': 'cpu'},
-    encode_kwargs={'normalize_embeddings': True}
+# Initialize Bedrock embeddings
+bedrock_embeddings = BedrockEmbeddings(
+    model_id="amazon.titan-embed-text-v2:0",
+    region_name="us-east-1"
 )
+
+def chunk_content(content, max_chars=8192):
+    """Chunk content by character limit, breaking at sentence boundaries"""
+    if len(content) <= max_chars:
+        return [content]
+    
+    chunks = []
+    start = 0
+    
+    while start < len(content):
+        end = start + max_chars
+        
+        if end >= len(content):
+            chunks.append(content[start:])
+            break
+        
+        # Find the nearest sentence end before the limit
+        chunk_text = content[start:end]
+        sentence_ends = [m.end() for m in re.finditer(r'[.!?]\s+', chunk_text)]
+        
+        if sentence_ends:
+            # Use the last sentence end within the limit
+            actual_end = start + sentence_ends[-1]
+            chunks.append(content[start:actual_end])
+            start = actual_end
+        else:
+            # No sentence end found, just cut at the limit
+            chunks.append(content[start:end])
+            start = end
+    
+    return chunks
 
 def main():
     # Get source index from command line argument
@@ -145,8 +176,10 @@ def main():
     es_client.indices.create(index=INDEX_NAME, body=index_settings)
     print(f"Created index {INDEX_NAME} with custom settings")
     
-    # Index documents with both vector embeddings and text fields
+    # Index documents with chunking and embeddings
     documents = []
+    total_chunks = 0
+    
     for hit in json_data['hits']['hits']:
         source = hit['_source']
         content = source.get('content', '').strip()
@@ -154,29 +187,34 @@ def main():
         # Skip documents with empty content
         if not content:
             continue
+        
+        # Chunk the content
+        chunks = chunk_content(content)
+        
+        for chunk in chunks:
+            # Generate embedding for chunk
+            embedding = bedrock_embeddings.embed_query(chunk)
             
-        # Generate embedding for content
-        embedding = hf_embeddings.embed_query(content)
-        
-        # Prepare document with all fields
-        doc = {
-            "vector": embedding,
-            "content": content,
-            "title": source.get('title', ''),
-            "headers": source.get('headers', []),
-            "filename": source.get('filename', ''),
-            "path": source.get('path', ''),
-            "hideinsearch": source.get('hideinsearch', False),
-            "islatestsubprodver": source.get('islatestsubprodver', True),
-            "reftype": source.get('reftype', ''),
-            "type": source.get('type', ''),
-            "topic": source.get('topic', ''),
-            "categories": source.get('categories', []),
-            "fncname": source.get('fncname', ''),
-            "searchCategory": source.get('searchCategory', [])
-        }
-        
-        documents.append(doc)
+            # Prepare document with all fields (chunk in content field)
+            doc = {
+                "vector": embedding,
+                "content": chunk,
+                "title": source.get('title', ''),
+                "headers": source.get('headers', []),
+                "filename": source.get('filename', ''),
+                "path": source.get('path', ''),
+                "hideinsearch": source.get('hideinsearch', False),
+                "islatestsubprodver": source.get('islatestsubprodver', True),
+                "reftype": source.get('reftype', ''),
+                "type": source.get('type', ''),
+                "topic": source.get('topic', ''),
+                "categories": source.get('categories', []),
+                "fncname": source.get('fncname', ''),
+                "searchCategory": source.get('searchCategory', [])
+            }
+            
+            documents.append(doc)
+            total_chunks += 1
     
     # Bulk index documents
     actions = [
@@ -188,7 +226,7 @@ def main():
     ]
     
     bulk(es_client, actions)
-    print(f"Successfully indexed {len(documents)} documents with hybrid search capabilities.")
+    print(f"Successfully indexed {total_chunks} chunks from {len(json_data['hits']['hits'])} source documents.")
 
 if __name__ == "__main__":
     main()
