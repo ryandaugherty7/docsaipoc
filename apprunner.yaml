@@ -1,0 +1,13 @@
+version: 1.0
+runtime: docker
+build:
+  commands:
+    build:
+      - echo "Build started on `date`"
+      - echo "Building Docker image..."
+run:
+  runtime-version: latest
+  command: streamlit run docs-ai-chat.py --server.port=8501 --server.address=0.0.0.0 -- --web
+  network:
+    port: 8501
+  # Environment variables configured in App Runner console

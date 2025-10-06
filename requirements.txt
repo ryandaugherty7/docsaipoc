@@ -1,0 +1,8 @@
+streamlit
+langchain-aws
+langchain-community
+langchain-core
+langchain-elasticsearch
+elasticsearch
+requests
+boto3
